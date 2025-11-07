@@ -182,3 +182,10 @@ List of known projects that fork or use changes from ungoogled-chromium:
 ## License
 
 BSD-3-clause. See [LICENSE](LICENSE)
+
+Notes
+-----
+* Fixed: `devutils/update_platform_patches.py` (and the copy in `source/`) now safely removes prepended files and their empty parent directories without referencing undefined variables. The unmerge step will only remove intermediate files if they exist.
+* Usage:
+  - Merge: ./devutils/update_platform_patches.py merge <platform_patches_dir>
+  - Unmerge: ./devutils/update_platform_patches.py unmerge <platform_patches_dir>

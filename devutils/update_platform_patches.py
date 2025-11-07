@@ -65,24 +65,39 @@ def _dir_empty(path):
 
 def _remove_files_with_dirs(root_dir, sorted_file_iter):
     '''
-    Deletes a list of sorted files relative to root_dir, removing empty directories along the way
+    Deletes a list of sorted files relative to root_dir, removing empty directories
+    along the way. This implementation is robust to empty iterables and avoids
+    referencing undefined variables.
     '''
     past_parent = None
+    last_parent = None
+    root_dir = Path(root_dir)
+
     for partial_path in sorted_file_iter:
         complete_path = Path(root_dir, partial_path)
         try:
             complete_path.unlink()
         except FileNotFoundError:
             get_logger().warning('Could not remove prepended patch: %s', complete_path)
-        if past_parent != complete_path.parent:
-            while past_parent and _dir_empty(past_parent):
-                past_parent.rmdir()
-                past_parent = past_parent.parent
-            past_parent = complete_path.parent
-    # Handle last path's directory
-    while _dir_empty(complete_path.parent):
-        complete_path.parent.rmdir()
-        complete_path = complete_path.parent
+        parent = complete_path.parent
+
+        # If we've moved to a new parent, try removing empty directories from the
+        # previous parent up towards but not including the root_dir.
+        if past_parent and parent != past_parent:
+            cur = past_parent
+            while cur != root_dir and _dir_empty(cur):
+                cur.rmdir()
+                cur = cur.parent
+
+        past_parent = parent
+        last_parent = parent
+
+    # Handle last path's directory (if any)
+    if last_parent:
+        cur = last_parent
+        while cur != root_dir and _dir_empty(cur):
+            cur.rmdir()
+            cur = cur.parent
 
 
 def unmerge_platform_patches(platform_patches_dir):
@@ -148,10 +163,13 @@ def unmerge_platform_patches(platform_patches_dir):
         series_file.write('\n')
 
     # All other operations are successful; remove merging intermediates
-    (platform_patches_dir / _SERIES_MERGED).unlink()
-    (platform_patches_dir / _SERIES_ORIG).unlink()
-    (platform_patches_dir / _SERIES_PREPEND).unlink()
-
+    for fname in (_SERIES_MERGED, _SERIES_ORIG, _SERIES_PREPEND):
+        fpath = platform_patches_dir / fname
+        if fpath.exists():
+            try:
+                fpath.unlink()
+            except Exception:
+                get_logger().warning('Could not remove merging intermediate: %s', fpath)
     return True
 
 
